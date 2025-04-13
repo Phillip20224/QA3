@@ -2,7 +2,9 @@
 
 import tkinter as tk
 from tkinter import ttk
-from tkinter import messagebox
+from tkinter import messagebox, simpledialog
+from coursequestions import Question, save_many_questions
+import sqlite3
 
 # Dictionary to store valid usernames and passwords
 admin_credentials = {
@@ -15,8 +17,9 @@ admin_credentials = {
 def open_admin_panel():
     admin_window = tk.Toplevel(root)
     admin_window.title("Admin Settings")
-    admin_window.geometry("300x200")
+    admin_window.geometry("300x300")
     ttk.Label(admin_window, text="Welcome to Admin Settings", font=("Arial", 14)).pack(pady=50)
+    populate_admin_window(admin_window)
 
 # Function to validate login credentials
 def validate_admin_login(username, password, login_window):
@@ -48,6 +51,153 @@ def open_admin_login():
         validate_admin_login(username, password, login_window)
 
     ttk.Button(login_window, text="Login", command=attempt_login).pack(pady=10)
+
+def add_question():
+    add_win = tk.Toplevel()
+    add_win.title("Add New Question")
+
+    # Dropdown for course
+    tk.Label(add_win, text="Course:").grid(row=0, column=0, sticky='w')
+    course_entry = ttk.Combobox(add_win, values=["Math101", "Bio101", "Chem101", "Hist101", "Phys101"])
+    course_entry.grid(row=0, column=1)
+
+    # Question text
+    tk.Label(add_win, text="Question:").grid(row=1, column=0, sticky='w')
+    question_entry = tk.Entry(add_win, width=50)
+    question_entry.grid(row=1, column=1)
+
+    choices_entries = []
+    for i in range(4):
+        tk.Label(add_win, text=f"Choice {chr(65+i)}:").grid(row=2+i, column=0, sticky='w')
+        entry = tk.Entry(add_win, width=40)
+        entry.grid(row=2+i, column=1)
+        choices_entries.append(entry)
+
+    # Correct answer index
+    tk.Label(add_win, text="Correct Index (0-3):").grid(row=6, column=0, sticky='w')
+    correct_index_entry = tk.Entry(add_win, width=5)
+    correct_index_entry.grid(row=6, column=1, sticky='w')
+
+    def save_question():
+        try:
+            course = course_entry.get()
+            question_text = question_entry.get()
+            choices = [entry.get() for entry in choices_entries]
+            correct_index = int(correct_index_entry.get())
+
+            q = Question(course, question_text, choices, correct_index)
+            save_many_questions([q])
+            messagebox.showinfo("Success", "Question added successfully!")
+            add_win.destroy()
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    tk.Button(add_win, text="Save Question", command=save_question).grid(row=7, columnspan=2, pady=10)
+
+def view_table():
+    table = simpledialog.askstring("View Table", "Enter course name (e.g., DS3850):")
+    if not table:
+        return
+
+    view_win = tk.Toplevel()
+    view_win.title(f"{table} Questions")
+
+    conn = sqlite3.connect("questionsdb.db")
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(f"SELECT * FROM {table}")
+        rows = cursor.fetchall()
+
+        for i, row in enumerate(rows):
+            tk.Label(view_win, text=str(row)).grid(row=i, column=0, sticky='w')
+    except Exception as e:
+        messagebox.showerror("Error", str(e))
+    finally:
+        conn.close()
+
+def delete_question():
+    course = simpledialog.askstring("Delete Question", "Course name:")
+    q_id = simpledialog.askinteger("Delete Question", "Question ID to delete:")
+
+    if course and q_id is not None:
+        conn = sqlite3.connect("questionsdb.db")
+        cursor = conn.cursor()
+        try:
+            cursor.execute(f"DELETE FROM {course} WHERE id = ?", (q_id,))
+            conn.commit()
+            messagebox.showinfo("Deleted", f"Question {q_id} deleted from {course}.")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+        finally:
+            conn.close()
+
+def modify_question():
+    course = simpledialog.askstring("Modify Question", "Course name:")
+    q_id = simpledialog.askinteger("Modify Question", "Question ID to modify:")
+
+    if course and q_id is not None:
+        conn = sqlite3.connect("questionsdb.db")
+        cursor = conn.cursor()
+        try:
+            cursor.execute(f"SELECT * FROM {course} WHERE id = ?", (q_id,))
+            question_row = cursor.fetchone()
+
+            if question_row:
+                edit_win = tk.Toplevel()
+                edit_win.title("Edit Question")
+
+                tk.Label(edit_win, text="Question:").grid(row=0, column=0, sticky='w')
+                question_entry = tk.Entry(edit_win, width=50)
+                question_entry.insert(0, question_row[1])
+                question_entry.grid(row=0, column=1)
+
+                choices_entries = []
+                for i in range(4):
+                    tk.Label(edit_win, text=f"Choice {chr(65+i)}:").grid(row=i+1, column=0, sticky='w')
+                    entry = tk.Entry(edit_win, width=40)
+                    entry.insert(0, question_row[i+2])
+                    entry.grid(row=i+1, column=1)
+                    choices_entries.append(entry)
+
+                tk.Label(edit_win, text="Correct Index (0-3):").grid(row=5, column=0, sticky='w')
+                correct_index_entry = tk.Entry(edit_win, width=5)
+                correct_index_entry.insert(0, question_row[6])
+                correct_index_entry.grid(row=5, column=1, sticky='w')
+
+                def save_changes():
+                    try:
+                        new_question = question_entry.get()
+                        new_choices = [e.get() for e in choices_entries]
+                        new_index = int(correct_index_entry.get())
+
+                        cursor.execute(f"""
+                            UPDATE {course}
+                            SET question = ?, choice_a = ?, choice_b = ?, choice_c = ?, choice_d = ?, correct_index = ?
+                            WHERE id = ?
+                        """, (new_question, *new_choices, new_index, q_id))
+                        conn.commit()
+                        messagebox.showinfo("Success", "Question updated successfully.")
+                        edit_win.destroy()
+                    except Exception as e:
+                        messagebox.showerror("Error", str(e))
+
+                tk.Button(edit_win, text="Save Changes", command=save_changes).grid(row=6, columnspan=2, pady=10)
+            else:
+                messagebox.showwarning("Not Found", "No question found with that ID.")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+        finally:
+            conn.close()
+
+
+# Call this inside your existing open_admin_window() function
+def populate_admin_window(admin_window):
+    ttk.Button(admin_window, text="Add New Question", command=add_question).pack(pady=5)
+    ttk.Button(admin_window, text="View Course Table", command=view_table).pack(pady=5)
+    ttk.Button(admin_window, text="Delete a Question", command=delete_question).pack(pady=5)
+    ttk.Button(admin_window, text="Modify a Question", command=modify_question).pack(pady=5)
+
 
 # Function to handle quiz taker window
 def open_quiz_window():
