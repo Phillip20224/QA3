@@ -5,6 +5,12 @@ from tkinter import ttk
 from tkinter import messagebox, simpledialog
 from coursequestions import Question, save_many_questions
 import sqlite3
+import random
+
+# Initialize the root window for the main GUI
+root = tk.Tk()
+root.title("Quiz Application")
+root.geometry("400x250")
 
 # Dictionary to store valid usernames and passwords
 admin_credentials = {
@@ -199,27 +205,141 @@ def populate_admin_window(admin_window):
     ttk.Button(admin_window, text="Modify a Question", command=modify_question).pack(pady=5)
 
 
-# Function to handle quiz taker window
 def open_quiz_window():
     quiz_window = tk.Toplevel(root)
     quiz_window.title("Quiz")
-    quiz_window.geometry("300x200")
-    ttk.Label(quiz_window, text="Welcome to the Quiz", font=("Arial", 14)).pack(pady=50)
-    # Add quiz-related widgets later here
+    quiz_window.geometry("350x200")
 
-# Main application window
-root = tk.Tk()
-root.title("User Selection")
-root.geometry("350x200")
+    ttk.Label(quiz_window, text="Choose a Course", font=("Arial", 14)).pack(pady=10)
 
-ttk.Label(root, text="Select User Type", font=("Arial", 16)).pack(pady=20)
+    # Dropdown for selecting course
+    selected_course = tk.StringVar()
+    course_dropdown = ttk.Combobox(
+        quiz_window, 
+        textvariable=selected_course, 
+        values=["DS3850", "FIN3210", "DS3620", "BMGT3510", "DS3860"]
+    )
+    course_dropdown.pack(pady=10)
 
-# Buttons to open respective windows
-admin_button = ttk.Button(root, text="Admin", command=open_admin_login)
+from coursequestions import Question  # Importing the Question class
+
+def open_quiz_window():
+    quiz_window = tk.Toplevel(root)
+    quiz_window.title("Quiz")
+    quiz_window.geometry("400x250")
+
+    ttk.Label(quiz_window, text="Choose a Course", font=("Arial", 14)).pack(pady=10)
+
+    selected_course = tk.StringVar()
+    course_dropdown = ttk.Combobox(
+        quiz_window,
+        textvariable=selected_course,
+        values=["DS3850", "FIN3210", "DS3620", "BMGT3510", "DS3860"]
+    )
+    course_dropdown.pack(pady=10)
+
+    def start_quiz():
+        course = selected_course.get()
+        if not course:
+            messagebox.showwarning("Missing Selection", "Please select a course first.")
+            return
+
+        questions = Question.get_all_questions_for_course(course)
+        if not questions:
+            messagebox.showinfo("Empty", f"No questions available in {course}.")
+            return
+
+        random.shuffle(questions)
+        questions = questions[:10]  # ✅ limit to 10 questions max
+
+        course_dropdown.pack_forget()
+        start_button.pack_forget()
+
+        current_q = {'index': 0}
+        score = {'correct': 0}
+
+        question_label = tk.Label(quiz_window, text="", wraplength=350, font=("Arial", 12))
+        question_label.pack(pady=10)
+
+        answer_buttons = []
+        for i in range(4):
+            btn = tk.Button(quiz_window, text="", width=40, wraplength=300)
+            btn.pack(pady=2)
+            answer_buttons.append(btn)
+
+        feedback_label = tk.Label(quiz_window, text="", font=("Arial", 10))
+        feedback_label.pack(pady=5)
+
+        score_label = tk.Label(quiz_window, text="Score: 0", font=("Arial", 12))
+        score_label.pack(pady=5)
+
+        def show_question():
+            feedback_label.config(text="")
+
+            if current_q['index'] >= len(questions):
+                question_label.config(text="🎉 Quiz complete!")
+                for btn in answer_buttons:
+                    btn.pack_forget()
+
+                feedback_label.config(
+                    text=f"Final Score: {score['correct']} / {len(questions)}",
+                    fg="blue"
+                )
+
+                def return_to_menu():
+                    quiz_window.destroy()
+
+                tk.Button(
+                    quiz_window,
+                    text="Return to Course Selection",
+                    font=("Arial", 11),
+                    command=return_to_menu
+                ).pack(pady=10)
+
+                return
+
+            q = questions[current_q['index']]
+            question_label.config(text=f"Q{current_q['index']+1}: {q.question_text}")
+            choices = q.choices
+            correct_index = q.correct_index
+
+            def make_click_handler(index):
+                def handle_click():
+                    if index == correct_index:
+                        feedback_label.config(text="✅ Correct!", fg="green")
+                        score['correct'] += 1
+                    else:
+                        feedback_label.config(
+                            text=f"❌ Incorrect. Correct answer: {choices[correct_index]}",
+                            fg="red"
+                        )
+                    score_label.config(text=f"Score: {score['correct']}")
+                    current_q['index'] += 1
+                    quiz_window.after(1500, show_question)
+                return handle_click
+
+            for i, btn in enumerate(answer_buttons):
+                btn.config(text=f"{chr(65+i)}. {choices[i]}", command=make_click_handler(i))
+
+        show_question()
+
+    start_button = ttk.Button(quiz_window, text="Start Quiz", command=start_quiz)
+    start_button.pack(pady=10)
+
+
+# Add these at the bottom of your script before root.mainloop()
+
+welcome_label = ttk.Label(root, text="Welcome to the Quiz App", font=("Arial", 14))
+welcome_label.pack(pady=20)
+
+admin_button = ttk.Button(root, text="Admin Login", command=open_admin_login)
 admin_button.pack(pady=10)
 
-quiz_button = ttk.Button(root, text="Take Quiz", command=open_quiz_window)
-quiz_button.pack(pady=10)
+quiz_taker_button = ttk.Button(root, text="Take a Quiz", command=open_quiz_window)
+quiz_taker_button.pack(pady=10)
+
+
+
 
 # Run the app
 root.mainloop()
