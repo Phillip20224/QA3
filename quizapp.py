@@ -64,7 +64,7 @@ def add_question():
 
     # Dropdown for course
     tk.Label(add_win, text="Course:").grid(row=0, column=0, sticky='w')
-    course_entry = ttk.Combobox(add_win, values=["Math101", "Bio101", "Chem101", "Hist101", "Phys101"])
+    course_entry = ttk.Combobox(add_win, values=["DS3850", "FIN3210", "DS3620", "BMGT3510", "DS3860"])
     course_entry.grid(row=0, column=1)
 
     # Question text
