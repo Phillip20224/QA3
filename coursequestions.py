@@ -21,6 +21,27 @@ class Question:
             self.correct_index
         )
 
+
+    @staticmethod
+    def get_all_questions_for_course(course):
+        conn = sqlite3.connect("questionsdb.db")
+        cursor = conn.cursor()
+        questions = []
+        try:
+            cursor.execute(f"SELECT * FROM {course}")
+            rows = cursor.fetchall()
+            for row in rows:
+                question_text = row[1]  # matches your __init__
+                choices = list(row[2:6])
+                correct_index = row[6]
+                questions.append(Question(course, question_text, choices, correct_index))
+        except Exception as e:
+            print(f"Error fetching questions for course {course}: {e}")
+        finally:
+            conn.close()
+        return questions
+
+
 def save_many_questions(questions, db_file="questionsdb.db"):
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
